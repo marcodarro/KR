@@ -13,7 +13,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useNutritionStore } from '../../src/store/nutritionStore';
 import { FoodLogItem } from '../../src/components/FoodLogItem';
 
-const MEAL_TYPES = ['breakfast', 'lunch', 'dinner', 'snack'] as const;
+const MEAL_TYPES: string[] = ['breakfast', 'lunch', 'dinner', 'snack'];
 
 export default function DiaryScreen() {
   const router = useRouter();
