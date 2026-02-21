@@ -40,13 +40,13 @@ export default function DiaryScreen() {
     return foodLogs.filter((log) => log.meal_type === mealType);
   };
 
-  const getMealIcon = (mealType: string): any => {
+  const getMealIcon = (mealType: string) => {
     switch (mealType) {
-      case 'breakfast': return 'sunny';
-      case 'lunch': return 'partly-sunny';
-      case 'dinner': return 'moon';
-      case 'snack': return 'cafe';
-      default: return 'restaurant';
+      case 'breakfast': return 'sunny' as const;
+      case 'lunch': return 'partly-sunny' as const;
+      case 'dinner': return 'moon' as const;
+      case 'snack': return 'cafe' as const;
+      default: return 'restaurant' as const;
     }
   };
 
