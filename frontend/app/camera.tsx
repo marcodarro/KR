@@ -18,7 +18,7 @@ export default function CameraScreen() {
   const router = useRouter();
   const [permission, requestPermission] = useCameraPermissions();
   const [isAnalyzing, setIsAnalyzing] = useState(false);
-  const cameraRef = useRef<any>(null);
+  const cameraRef = useRef<CameraView>(null);
 
   const handleCapture = async () => {
     if (!cameraRef.current) return;
