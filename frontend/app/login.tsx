@@ -17,7 +17,13 @@ const BACKEND_URL = process.env.EXPO_PUBLIC_BACKEND_URL || '';
 export default function LoginScreen() {
   const handleGoogleLogin = async () => {
     // REMINDER: DO NOT HARDCODE THE URL, OR ADD ANY FALLBACKS OR REDIRECT URLS, THIS BREAKS THE AUTH
-    const redirectUrl = `${BACKEND_URL}/auth-callback`;
+    // Use window.location.origin for web, or BACKEND_URL for native
+    let redirectUrl: string;
+    if (Platform.OS === 'web' && typeof window !== 'undefined') {
+      redirectUrl = `${window.location.origin}/auth-callback`;
+    } else {
+      redirectUrl = `${BACKEND_URL}/auth-callback`;
+    }
     const authUrl = `https://auth.emergentagent.com/?redirect=${encodeURIComponent(redirectUrl)}`;
     
     if (Platform.OS === 'web') {
