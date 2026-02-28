@@ -121,6 +121,176 @@ class FastingStats(BaseModel):
     current_streak: int = 0
     best_streak: int = 0
 
+# ==================== HEALTH DATA MODELS ====================
+
+class SleepData(BaseModel):
+    record_id: str = Field(default_factory=lambda: f"sleep_{uuid.uuid4().hex[:12]}")
+    user_id: str
+    date: str  # YYYY-MM-DD
+    duration_hours: float = 0
+    sleep_quality: int = 0  # 1-100 score
+    deep_sleep_hours: float = 0
+    light_sleep_hours: float = 0
+    rem_sleep_hours: float = 0
+    awake_hours: float = 0
+    sleep_start: Optional[str] = None  # ISO timestamp
+    sleep_end: Optional[str] = None
+    source: str = "manual"  # manual, terra, apple_health, samsung_health
+    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+
+class HeartData(BaseModel):
+    record_id: str = Field(default_factory=lambda: f"heart_{uuid.uuid4().hex[:12]}")
+    user_id: str
+    date: str
+    resting_heart_rate: Optional[int] = None  # bpm
+    hrv: Optional[float] = None  # ms (heart rate variability)
+    avg_heart_rate: Optional[int] = None
+    max_heart_rate: Optional[int] = None
+    min_heart_rate: Optional[int] = None
+    heart_rate_zones: Dict[str, float] = Field(default_factory=dict)  # zone: minutes
+    source: str = "manual"
+    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+
+class ActivityData(BaseModel):
+    record_id: str = Field(default_factory=lambda: f"activity_{uuid.uuid4().hex[:12]}")
+    user_id: str
+    date: str
+    steps: int = 0
+    active_calories: float = 0
+    total_calories: float = 0
+    distance_km: float = 0
+    floors_climbed: int = 0
+    active_minutes: int = 0
+    workouts: List[Dict[str, Any]] = Field(default_factory=list)
+    source: str = "manual"
+    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+
+class GlucoseData(BaseModel):
+    record_id: str = Field(default_factory=lambda: f"glucose_{uuid.uuid4().hex[:12]}")
+    user_id: str
+    date: str
+    readings: List[Dict[str, Any]] = Field(default_factory=list)  # [{timestamp, value_mg_dl}]
+    avg_glucose: Optional[float] = None  # mg/dL
+    min_glucose: Optional[float] = None
+    max_glucose: Optional[float] = None
+    time_in_range_percent: Optional[float] = None  # 70-180 mg/dL
+    time_below_range_percent: Optional[float] = None
+    time_above_range_percent: Optional[float] = None
+    glucose_variability: Optional[float] = None  # CV%
+    estimated_a1c: Optional[float] = None
+    spike_count: int = 0
+    source: str = "manual"  # manual, dexcom, libre, terra
+    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+
+class StressRecoveryData(BaseModel):
+    record_id: str = Field(default_factory=lambda: f"stress_{uuid.uuid4().hex[:12]}")
+    user_id: str
+    date: str
+    stress_level: Optional[int] = None  # 1-100
+    recovery_score: Optional[int] = None  # 1-100
+    readiness_score: Optional[int] = None  # 1-100
+    strain_score: Optional[float] = None
+    body_battery: Optional[int] = None  # Garmin style 1-100
+    source: str = "manual"
+    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+
+class BodyData(BaseModel):
+    record_id: str = Field(default_factory=lambda: f"body_{uuid.uuid4().hex[:12]}")
+    user_id: str
+    date: str
+    weight_kg: Optional[float] = None
+    body_fat_percent: Optional[float] = None
+    muscle_mass_kg: Optional[float] = None
+    bone_mass_kg: Optional[float] = None
+    water_percent: Optional[float] = None
+    bmi: Optional[float] = None
+    waist_cm: Optional[float] = None
+    hydration_ml: Optional[int] = None
+    source: str = "manual"
+    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+
+class NutritionSummary(BaseModel):
+    date: str
+    calories: float = 0
+    net_carbs: float = 0
+    total_carbs: float = 0
+    fiber: float = 0
+    protein: float = 0
+    fat: float = 0
+    saturated_fat: float = 0
+    # Micronutrients
+    sodium: float = 0
+    potassium: float = 0
+    cholesterol: float = 0
+    # Vitamins
+    vitamin_a: float = 0  # mcg
+    vitamin_c: float = 0  # mg
+    vitamin_d: float = 0  # mcg
+    vitamin_e: float = 0  # mg
+    vitamin_k: float = 0  # mcg
+    vitamin_b1: float = 0  # mg (thiamine)
+    vitamin_b2: float = 0  # mg (riboflavin)
+    vitamin_b3: float = 0  # mg (niacin)
+    vitamin_b6: float = 0  # mg
+    vitamin_b12: float = 0  # mcg
+    folate: float = 0  # mcg
+    # Minerals
+    calcium: float = 0  # mg
+    iron: float = 0  # mg
+    magnesium: float = 0  # mg
+    phosphorus: float = 0  # mg
+    zinc: float = 0  # mg
+    selenium: float = 0  # mcg
+    copper: float = 0  # mg
+    manganese: float = 0  # mg
+
+class HealthDataInput(BaseModel):
+    date: str
+    # Sleep
+    sleep_duration_hours: Optional[float] = None
+    sleep_quality: Optional[int] = None
+    deep_sleep_hours: Optional[float] = None
+    light_sleep_hours: Optional[float] = None
+    rem_sleep_hours: Optional[float] = None
+    # Heart
+    resting_heart_rate: Optional[int] = None
+    hrv: Optional[float] = None
+    # Activity
+    steps: Optional[int] = None
+    active_calories: Optional[float] = None
+    active_minutes: Optional[int] = None
+    # Glucose
+    glucose_reading: Optional[float] = None  # Single reading
+    # Stress/Recovery
+    stress_level: Optional[int] = None
+    recovery_score: Optional[int] = None
+    readiness_score: Optional[int] = None
+    # Body
+    weight_kg: Optional[float] = None
+    body_fat_percent: Optional[float] = None
+    hydration_ml: Optional[int] = None
+
+class TerraIntegration(BaseModel):
+    user_id: str
+    terra_user_id: Optional[str] = None
+    provider: str  # fitbit, garmin, whoop, oura, etc.
+    connected: bool = False
+    last_sync: Optional[datetime] = None
+    access_token: Optional[str] = None
+    refresh_token: Optional[str] = None
+    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+
+class ChatMessage(BaseModel):
+    message_id: str = Field(default_factory=lambda: f"msg_{uuid.uuid4().hex[:12]}")
+    user_id: str
+    role: str  # user or assistant
+    content: str
+    timestamp: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+
+class ChatRequest(BaseModel):
+    message: str
+    include_health_context: bool = True
+
 class FoodItem(BaseModel):
     food_id: str = Field(default_factory=lambda: f"food_{uuid.uuid4().hex[:12]}")
     name: str
