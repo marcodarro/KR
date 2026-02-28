@@ -11,12 +11,12 @@ const DiaryIcon = ({ color, size }: { color: string; size: number }) => (
   <Ionicons name="book" size={size} color={color} />
 );
 
-const SuggestionsIcon = ({ color, size }: { color: string; size: number }) => (
-  <Ionicons name="bulb" size={size} color={color} />
+const FastingIcon = ({ color, size }: { color: string; size: number }) => (
+  <Ionicons name="timer" size={size} color={color} />
 );
 
-const GoalsIcon = ({ color, size }: { color: string; size: number }) => (
-  <Ionicons name="flag" size={size} color={color} />
+const SuggestionsIcon = ({ color, size }: { color: string; size: number }) => (
+  <Ionicons name="bulb" size={size} color={color} />
 );
 
 const ProfileIcon = ({ color, size }: { color: string; size: number }) => (
@@ -59,17 +59,18 @@ export default function TabLayout() {
         }}
       />
       <Tabs.Screen
-        name="suggestions"
+        name="fasting"
         options={{
-          title: 'Suggestions',
-          tabBarIcon: SuggestionsIcon,
+          title: 'Fasting',
+          tabBarIcon: FastingIcon,
+          tabBarActiveTintColor: '#F59E0B',
         }}
       />
       <Tabs.Screen
-        name="goals"
+        name="suggestions"
         options={{
-          title: 'Goals',
-          tabBarIcon: GoalsIcon,
+          title: 'Tips',
+          tabBarIcon: SuggestionsIcon,
         }}
       />
       <Tabs.Screen
@@ -77,6 +78,12 @@ export default function TabLayout() {
         options={{
           title: 'Profile',
           tabBarIcon: ProfileIcon,
+        }}
+      />
+      <Tabs.Screen
+        name="goals"
+        options={{
+          href: null, // Hide from tab bar but still accessible
         }}
       />
     </Tabs>
