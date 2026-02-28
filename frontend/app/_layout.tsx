@@ -76,6 +76,27 @@ export default function RootLayout() {
             presentation: 'modal'
           }} 
         />
+        <Stack.Screen 
+          name="health-chat" 
+          options={{ 
+            headerShown: false,
+            presentation: 'modal'
+          }} 
+        />
+        <Stack.Screen 
+          name="log-health" 
+          options={{ 
+            headerShown: false,
+            presentation: 'modal'
+          }} 
+        />
+        <Stack.Screen 
+          name="integrations" 
+          options={{ 
+            headerShown: false,
+            presentation: 'modal'
+          }} 
+        />
       </Stack>
       <StatusBar style="light" />
     </>
