@@ -38,10 +38,10 @@ export default function ProfileScreen() {
 
         {/* Menu Items */}
         <View style={styles.menuSection}>
-          <TouchableOpacity style={styles.menuItem}>
+          <TouchableOpacity style={styles.menuItem} onPress={() => router.push('/(tabs)/goals')}>
             <View style={styles.menuItemLeft}>
-              <Ionicons name="person-outline" size={22} color="#10B981" />
-              <Text style={styles.menuItemText}>Edit Profile</Text>
+              <Ionicons name="flag-outline" size={22} color="#10B981" />
+              <Text style={styles.menuItemText}>Keto Goals</Text>
             </View>
             <Ionicons name="chevron-forward" size={20} color="#64748B" />
           </TouchableOpacity>
