@@ -8,10 +8,12 @@ import {
   TouchableOpacity,
   Image,
 } from 'react-native';
+import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { useAuthStore } from '../../src/store/authStore';
 
 export default function ProfileScreen() {
+  const router = useRouter();
   const { user, logout } = useAuthStore();
 
   const handleLogout = async () => {
