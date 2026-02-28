@@ -820,6 +820,217 @@ async def root():
 async def health():
     return {"status": "healthy"}
 
+# ==================== FASTING ROUTES ====================
+
+@api_router.get("/fasting/protocols")
+async def get_fasting_protocols():
+    """Get all available fasting protocols"""
+    return [p.model_dump() for p in FASTING_PROTOCOLS]
+
+@api_router.post("/fasting/start")
+async def start_fast(
+    request: StartFastRequest,
+    user: User = Depends(get_current_user)
+):
+    """Start a new fasting session"""
+    # Check if there's already an active fast
+    active_fast = await db.fasting_sessions.find_one(
+        {"user_id": user.user_id, "is_active": True},
+        {"_id": 0}
+    )
+    
+    if active_fast:
+        raise HTTPException(status_code=400, detail="You already have an active fast")
+    
+    # Get protocol details
+    protocol = next((p for p in FASTING_PROTOCOLS if p.protocol_id == request.protocol_id), None)
+    
+    if not protocol:
+        raise HTTPException(status_code=400, detail="Invalid protocol")
+    
+    # Determine fasting hours
+    if request.protocol_id == "custom":
+        if not request.custom_hours or request.custom_hours < 1:
+            raise HTTPException(status_code=400, detail="Custom hours required for custom protocol")
+        target_hours = request.custom_hours
+    else:
+        target_hours = protocol.fasting_hours
+    
+    # Set start time
+    start_time = request.start_time or datetime.now(timezone.utc)
+    target_end_time = start_time + timedelta(hours=target_hours)
+    
+    # Create fasting session
+    session = FastingSession(
+        user_id=user.user_id,
+        protocol_id=request.protocol_id,
+        protocol_name=protocol.name if request.protocol_id != "custom" else f"Custom {target_hours}h",
+        target_hours=target_hours,
+        start_time=start_time,
+        target_end_time=target_end_time
+    )
+    
+    await db.fasting_sessions.insert_one(session.model_dump())
+    
+    return session.model_dump()
+
+@api_router.post("/fasting/end")
+async def end_fast(
+    request: EndFastRequest,
+    user: User = Depends(get_current_user)
+):
+    """End the current fasting session"""
+    active_fast = await db.fasting_sessions.find_one(
+        {"user_id": user.user_id, "is_active": True},
+        {"_id": 0}
+    )
+    
+    if not active_fast:
+        raise HTTPException(status_code=400, detail="No active fast to end")
+    
+    end_time = datetime.now(timezone.utc)
+    start_time = active_fast["start_time"]
+    
+    if isinstance(start_time, str):
+        start_time = datetime.fromisoformat(start_time.replace('Z', '+00:00'))
+    if start_time.tzinfo is None:
+        start_time = start_time.replace(tzinfo=timezone.utc)
+    
+    actual_hours = (end_time - start_time).total_seconds() / 3600
+    completed = actual_hours >= active_fast["target_hours"]
+    
+    await db.fasting_sessions.update_one(
+        {"session_id": active_fast["session_id"]},
+        {
+            "$set": {
+                "end_time": end_time,
+                "is_active": False,
+                "completed": completed,
+                "actual_hours": round(actual_hours, 2),
+                "notes": request.notes
+            }
+        }
+    )
+    
+    updated = await db.fasting_sessions.find_one(
+        {"session_id": active_fast["session_id"]},
+        {"_id": 0}
+    )
+    
+    return updated
+
+@api_router.get("/fasting/current")
+async def get_current_fast(user: User = Depends(get_current_user)):
+    """Get the current active fasting session"""
+    active_fast = await db.fasting_sessions.find_one(
+        {"user_id": user.user_id, "is_active": True},
+        {"_id": 0}
+    )
+    
+    if not active_fast:
+        return {"active": False, "session": None}
+    
+    # Calculate elapsed time
+    start_time = active_fast["start_time"]
+    if isinstance(start_time, str):
+        start_time = datetime.fromisoformat(start_time.replace('Z', '+00:00'))
+    if start_time.tzinfo is None:
+        start_time = start_time.replace(tzinfo=timezone.utc)
+    
+    now = datetime.now(timezone.utc)
+    elapsed_seconds = (now - start_time).total_seconds()
+    elapsed_hours = elapsed_seconds / 3600
+    target_hours = active_fast["target_hours"]
+    remaining_seconds = max(0, (target_hours * 3600) - elapsed_seconds)
+    progress_percent = min(100, (elapsed_hours / target_hours) * 100)
+    
+    return {
+        "active": True,
+        "session": active_fast,
+        "elapsed_seconds": int(elapsed_seconds),
+        "elapsed_hours": round(elapsed_hours, 2),
+        "remaining_seconds": int(remaining_seconds),
+        "progress_percent": round(progress_percent, 1),
+        "is_complete": elapsed_hours >= target_hours
+    }
+
+@api_router.get("/fasting/history")
+async def get_fasting_history(
+    limit: int = 30,
+    user: User = Depends(get_current_user)
+):
+    """Get fasting history"""
+    sessions = await db.fasting_sessions.find(
+        {"user_id": user.user_id, "is_active": False},
+        {"_id": 0}
+    ).sort("start_time", -1).to_list(limit)
+    
+    return sessions
+
+@api_router.get("/fasting/stats")
+async def get_fasting_stats(user: User = Depends(get_current_user)):
+    """Get fasting statistics"""
+    sessions = await db.fasting_sessions.find(
+        {"user_id": user.user_id, "is_active": False},
+        {"_id": 0}
+    ).sort("start_time", -1).to_list(1000)
+    
+    if not sessions:
+        return FastingStats().model_dump()
+    
+    total_fasts = len(sessions)
+    completed_fasts = sum(1 for s in sessions if s.get("completed", False))
+    
+    actual_hours = [s.get("actual_hours", 0) for s in sessions if s.get("actual_hours")]
+    total_hours = sum(actual_hours)
+    avg_duration = total_hours / len(actual_hours) if actual_hours else 0
+    longest_fast = max(actual_hours) if actual_hours else 0
+    
+    # Calculate streak (consecutive completed fasts)
+    current_streak = 0
+    best_streak = 0
+    temp_streak = 0
+    
+    for s in sessions:
+        if s.get("completed", False):
+            temp_streak += 1
+            if temp_streak > best_streak:
+                best_streak = temp_streak
+        else:
+            temp_streak = 0
+    
+    # Current streak (from most recent)
+    for s in sessions:
+        if s.get("completed", False):
+            current_streak += 1
+        else:
+            break
+    
+    return {
+        "total_fasts": total_fasts,
+        "completed_fasts": completed_fasts,
+        "total_hours_fasted": round(total_hours, 1),
+        "average_fast_duration": round(avg_duration, 1),
+        "longest_fast": round(longest_fast, 1),
+        "current_streak": current_streak,
+        "best_streak": best_streak
+    }
+
+@api_router.delete("/fasting/{session_id}")
+async def delete_fasting_session(
+    session_id: str,
+    user: User = Depends(get_current_user)
+):
+    """Delete a fasting session"""
+    result = await db.fasting_sessions.delete_one(
+        {"session_id": session_id, "user_id": user.user_id}
+    )
+    
+    if result.deleted_count == 0:
+        raise HTTPException(status_code=404, detail="Session not found")
+    
+    return {"message": "Session deleted"}
+
 # Include the router in the main app
 app.include_router(api_router)
 
