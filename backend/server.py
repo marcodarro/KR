@@ -1201,6 +1201,531 @@ async def delete_fasting_session(
     
     return {"message": "Session deleted"}
 
+# ==================== HEALTH DATA ROUTES ====================
+
+import random
+
+def generate_mock_health_data(user_id: str, date: str) -> Dict[str, Any]:
+    """Generate realistic mock health data for demo purposes"""
+    return {
+        "sleep": {
+            "duration_hours": round(random.uniform(5.5, 8.5), 1),
+            "sleep_quality": random.randint(60, 95),
+            "deep_sleep_hours": round(random.uniform(0.8, 2.0), 1),
+            "light_sleep_hours": round(random.uniform(2.5, 4.0), 1),
+            "rem_sleep_hours": round(random.uniform(1.0, 2.0), 1),
+            "awake_hours": round(random.uniform(0.2, 0.8), 1),
+        },
+        "heart": {
+            "resting_heart_rate": random.randint(55, 72),
+            "hrv": round(random.uniform(25, 65), 1),
+            "avg_heart_rate": random.randint(65, 85),
+            "max_heart_rate": random.randint(120, 165),
+            "min_heart_rate": random.randint(48, 58),
+        },
+        "activity": {
+            "steps": random.randint(3000, 15000),
+            "active_calories": random.randint(150, 600),
+            "total_calories": random.randint(1800, 2800),
+            "distance_km": round(random.uniform(2.0, 12.0), 1),
+            "active_minutes": random.randint(15, 90),
+        },
+        "glucose": {
+            "avg_glucose": round(random.uniform(85, 120), 1),
+            "min_glucose": round(random.uniform(65, 85), 1),
+            "max_glucose": round(random.uniform(120, 180), 1),
+            "time_in_range_percent": round(random.uniform(70, 95), 1),
+            "spike_count": random.randint(0, 4),
+            "readings": [
+                {"time": f"{h:02d}:00", "value": round(random.uniform(80, 140), 1)}
+                for h in range(0, 24, 2)
+            ]
+        },
+        "stress_recovery": {
+            "stress_level": random.randint(20, 70),
+            "recovery_score": random.randint(50, 95),
+            "readiness_score": random.randint(50, 95),
+            "body_battery": random.randint(30, 100),
+        },
+        "body": {
+            "weight_kg": round(random.uniform(65, 85), 1),
+            "body_fat_percent": round(random.uniform(15, 28), 1),
+            "hydration_ml": random.randint(1500, 3000),
+        }
+    }
+
+@api_router.get("/health/dashboard")
+async def get_health_dashboard(
+    date: Optional[str] = None,
+    user: User = Depends(get_current_user)
+):
+    """Get comprehensive health dashboard data"""
+    if not date:
+        date = datetime.now(timezone.utc).date().isoformat()
+    
+    # Try to get real data first, fall back to mock
+    sleep_data = await db.sleep_data.find_one(
+        {"user_id": user.user_id, "date": date}, {"_id": 0}
+    )
+    heart_data = await db.heart_data.find_one(
+        {"user_id": user.user_id, "date": date}, {"_id": 0}
+    )
+    activity_data = await db.activity_data.find_one(
+        {"user_id": user.user_id, "date": date}, {"_id": 0}
+    )
+    glucose_data = await db.glucose_data.find_one(
+        {"user_id": user.user_id, "date": date}, {"_id": 0}
+    )
+    stress_data = await db.stress_recovery_data.find_one(
+        {"user_id": user.user_id, "date": date}, {"_id": 0}
+    )
+    body_data = await db.body_data.find_one(
+        {"user_id": user.user_id, "date": date}, {"_id": 0}
+    )
+    
+    # Get nutrition data from food logs
+    nutrition_data = await db.daily_nutrition.find_one(
+        {"user_id": user.user_id, "date": date}, {"_id": 0}
+    )
+    
+    # Generate mock data if no real data exists
+    mock = generate_mock_health_data(user.user_id, date)
+    
+    return {
+        "date": date,
+        "sleep": sleep_data or mock["sleep"],
+        "heart": heart_data or mock["heart"],
+        "activity": activity_data or mock["activity"],
+        "glucose": glucose_data or mock["glucose"],
+        "stress_recovery": stress_data or mock["stress_recovery"],
+        "body": body_data or mock["body"],
+        "nutrition": nutrition_data or {
+            "total_calories": 0,
+            "total_net_carbs": 0,
+            "total_protein": 0,
+            "total_fat": 0
+        },
+        "data_source": "mock" if not any([sleep_data, heart_data, activity_data]) else "real"
+    }
+
+@api_router.get("/health/weekly")
+async def get_weekly_health(user: User = Depends(get_current_user)):
+    """Get last 7 days health summary"""
+    today = datetime.now(timezone.utc).date()
+    weekly_data = []
+    
+    for i in range(7):
+        date = (today - timedelta(days=i)).isoformat()
+        mock = generate_mock_health_data(user.user_id, date)
+        
+        # Try to get real data
+        sleep = await db.sleep_data.find_one({"user_id": user.user_id, "date": date}, {"_id": 0})
+        heart = await db.heart_data.find_one({"user_id": user.user_id, "date": date}, {"_id": 0})
+        activity = await db.activity_data.find_one({"user_id": user.user_id, "date": date}, {"_id": 0})
+        glucose = await db.glucose_data.find_one({"user_id": user.user_id, "date": date}, {"_id": 0})
+        stress = await db.stress_recovery_data.find_one({"user_id": user.user_id, "date": date}, {"_id": 0})
+        
+        weekly_data.append({
+            "date": date,
+            "sleep_hours": (sleep or mock["sleep"])["duration_hours"] if sleep else mock["sleep"]["duration_hours"],
+            "sleep_quality": (sleep or mock["sleep"])["sleep_quality"] if sleep else mock["sleep"]["sleep_quality"],
+            "steps": (activity or mock["activity"])["steps"] if activity else mock["activity"]["steps"],
+            "rhr": (heart or mock["heart"])["resting_heart_rate"] if heart else mock["heart"]["resting_heart_rate"],
+            "hrv": (heart or mock["heart"])["hrv"] if heart else mock["heart"]["hrv"],
+            "avg_glucose": (glucose or mock["glucose"])["avg_glucose"] if glucose else mock["glucose"]["avg_glucose"],
+            "readiness": (stress or mock["stress_recovery"])["readiness_score"] if stress else mock["stress_recovery"]["readiness_score"],
+        })
+    
+    return weekly_data
+
+@api_router.post("/health/log")
+async def log_health_data(
+    data: HealthDataInput,
+    user: User = Depends(get_current_user)
+):
+    """Log manual health data"""
+    date = data.date
+    
+    # Sleep data
+    if data.sleep_duration_hours is not None:
+        sleep_record = SleepData(
+            user_id=user.user_id,
+            date=date,
+            duration_hours=data.sleep_duration_hours,
+            sleep_quality=data.sleep_quality or 70,
+            deep_sleep_hours=data.deep_sleep_hours or 0,
+            light_sleep_hours=data.light_sleep_hours or 0,
+            rem_sleep_hours=data.rem_sleep_hours or 0,
+            source="manual"
+        )
+        await db.sleep_data.update_one(
+            {"user_id": user.user_id, "date": date},
+            {"$set": sleep_record.model_dump()},
+            upsert=True
+        )
+    
+    # Heart data
+    if data.resting_heart_rate is not None or data.hrv is not None:
+        heart_record = HeartData(
+            user_id=user.user_id,
+            date=date,
+            resting_heart_rate=data.resting_heart_rate,
+            hrv=data.hrv,
+            source="manual"
+        )
+        await db.heart_data.update_one(
+            {"user_id": user.user_id, "date": date},
+            {"$set": heart_record.model_dump()},
+            upsert=True
+        )
+    
+    # Activity data
+    if data.steps is not None or data.active_calories is not None:
+        activity_record = ActivityData(
+            user_id=user.user_id,
+            date=date,
+            steps=data.steps or 0,
+            active_calories=data.active_calories or 0,
+            active_minutes=data.active_minutes or 0,
+            source="manual"
+        )
+        await db.activity_data.update_one(
+            {"user_id": user.user_id, "date": date},
+            {"$set": activity_record.model_dump()},
+            upsert=True
+        )
+    
+    # Glucose data
+    if data.glucose_reading is not None:
+        existing = await db.glucose_data.find_one(
+            {"user_id": user.user_id, "date": date}, {"_id": 0}
+        )
+        readings = existing.get("readings", []) if existing else []
+        readings.append({
+            "time": datetime.now(timezone.utc).strftime("%H:%M"),
+            "value": data.glucose_reading
+        })
+        
+        values = [r["value"] for r in readings]
+        glucose_record = GlucoseData(
+            user_id=user.user_id,
+            date=date,
+            readings=readings,
+            avg_glucose=sum(values) / len(values) if values else None,
+            min_glucose=min(values) if values else None,
+            max_glucose=max(values) if values else None,
+            source="manual"
+        )
+        await db.glucose_data.update_one(
+            {"user_id": user.user_id, "date": date},
+            {"$set": glucose_record.model_dump()},
+            upsert=True
+        )
+    
+    # Stress/Recovery data
+    if any([data.stress_level, data.recovery_score, data.readiness_score]):
+        stress_record = StressRecoveryData(
+            user_id=user.user_id,
+            date=date,
+            stress_level=data.stress_level,
+            recovery_score=data.recovery_score,
+            readiness_score=data.readiness_score,
+            source="manual"
+        )
+        await db.stress_recovery_data.update_one(
+            {"user_id": user.user_id, "date": date},
+            {"$set": stress_record.model_dump()},
+            upsert=True
+        )
+    
+    # Body data
+    if any([data.weight_kg, data.body_fat_percent, data.hydration_ml]):
+        body_record = BodyData(
+            user_id=user.user_id,
+            date=date,
+            weight_kg=data.weight_kg,
+            body_fat_percent=data.body_fat_percent,
+            hydration_ml=data.hydration_ml,
+            source="manual"
+        )
+        await db.body_data.update_one(
+            {"user_id": user.user_id, "date": date},
+            {"$set": body_record.model_dump()},
+            upsert=True
+        )
+    
+    return {"message": "Health data logged", "date": date}
+
+@api_router.get("/health/nutrition/{date}")
+async def get_nutrition_details(
+    date: str,
+    user: User = Depends(get_current_user)
+):
+    """Get detailed nutrition breakdown for a date"""
+    food_logs = await db.food_logs.find(
+        {"user_id": user.user_id, "log_date": date},
+        {"_id": 0}
+    ).to_list(100)
+    
+    # Aggregate all nutrients
+    summary = {
+        "date": date,
+        "calories": 0, "net_carbs": 0, "total_carbs": 0, "fiber": 0,
+        "protein": 0, "fat": 0, "saturated_fat": 0,
+        "sodium": 0, "potassium": 0, "cholesterol": 0,
+        "vitamin_a": 0, "vitamin_c": 0, "calcium": 0, "iron": 0,
+        "meals": {"breakfast": [], "lunch": [], "dinner": [], "snack": []},
+        "meal_totals": {}
+    }
+    
+    for log in food_logs:
+        servings = log.get("servings", 1)
+        summary["calories"] += log.get("calories", 0) * servings
+        summary["net_carbs"] += log.get("net_carbs", 0) * servings
+        summary["total_carbs"] += log.get("total_carbs", 0) * servings
+        summary["fiber"] += log.get("fiber", 0) * servings
+        summary["protein"] += log.get("protein", 0) * servings
+        summary["fat"] += log.get("fat", 0) * servings
+        summary["saturated_fat"] += log.get("saturated_fat", 0) * servings
+        summary["sodium"] += log.get("sodium", 0) * servings
+        summary["potassium"] += log.get("potassium", 0) * servings
+        summary["cholesterol"] += log.get("cholesterol", 0) * servings
+        summary["vitamin_a"] += log.get("vitamin_a", 0) * servings
+        summary["vitamin_c"] += log.get("vitamin_c", 0) * servings
+        summary["calcium"] += log.get("calcium", 0) * servings
+        summary["iron"] += log.get("iron", 0) * servings
+        
+        meal_type = log.get("meal_type", "snack")
+        if meal_type in summary["meals"]:
+            summary["meals"][meal_type].append(log)
+    
+    return summary
+
+# ==================== AI INSIGHTS & CHAT ====================
+
+async def get_health_context(user_id: str, days: int = 7) -> str:
+    """Gather health context for AI analysis"""
+    today = datetime.now(timezone.utc).date()
+    context_parts = []
+    
+    for i in range(days):
+        date = (today - timedelta(days=i)).isoformat()
+        mock = generate_mock_health_data(user_id, date)
+        
+        sleep = await db.sleep_data.find_one({"user_id": user_id, "date": date}, {"_id": 0})
+        heart = await db.heart_data.find_one({"user_id": user_id, "date": date}, {"_id": 0})
+        activity = await db.activity_data.find_one({"user_id": user_id, "date": date}, {"_id": 0})
+        glucose = await db.glucose_data.find_one({"user_id": user_id, "date": date}, {"_id": 0})
+        stress = await db.stress_recovery_data.find_one({"user_id": user_id, "date": date}, {"_id": 0})
+        nutrition = await db.daily_nutrition.find_one({"user_id": user_id, "date": date}, {"_id": 0})
+        
+        day_data = {
+            "date": date,
+            "sleep_hours": (sleep or mock["sleep"])["duration_hours"],
+            "sleep_quality": (sleep or mock["sleep"])["sleep_quality"],
+            "steps": (activity or mock["activity"])["steps"],
+            "rhr": (heart or mock["heart"])["resting_heart_rate"],
+            "hrv": (heart or mock["heart"])["hrv"],
+            "avg_glucose": (glucose or mock["glucose"])["avg_glucose"],
+            "glucose_spikes": (glucose or mock["glucose"])["spike_count"],
+            "readiness": (stress or mock["stress_recovery"])["readiness_score"],
+            "stress": (stress or mock["stress_recovery"])["stress_level"],
+            "calories": nutrition.get("total_calories", 0) if nutrition else 0,
+            "net_carbs": nutrition.get("total_net_carbs", 0) if nutrition else 0,
+        }
+        context_parts.append(f"Date {date}: Sleep {day_data['sleep_hours']}h (quality {day_data['sleep_quality']}%), Steps {day_data['steps']}, RHR {day_data['rhr']}bpm, HRV {day_data['hrv']}ms, Glucose avg {day_data['avg_glucose']}mg/dL ({day_data['glucose_spikes']} spikes), Readiness {day_data['readiness']}%, Stress {day_data['stress']}%, Calories {day_data['calories']}, Net Carbs {day_data['net_carbs']}g")
+    
+    return "\n".join(context_parts)
+
+@api_router.get("/health/insights")
+async def get_ai_insights(user: User = Depends(get_current_user)):
+    """Get AI-powered health insights"""
+    try:
+        from emergentintegrations.llm.chat import LlmChat, UserMessage
+        
+        health_context = await get_health_context(user.user_id, 7)
+        
+        chat = LlmChat(
+            api_key=EMERGENT_LLM_KEY,
+            session_id=f"insights_{user.user_id}_{datetime.now().strftime('%Y%m%d')}",
+            system_message="""You are an expert health analyst specializing in metabolic health, sleep optimization, and the ketogenic diet. 
+            Analyze the user's health data and provide actionable insights.
+            
+            Focus on:
+            1. Sleep patterns and quality trends
+            2. Heart rate variability (HRV) and recovery
+            3. Glucose management and keto adaptation
+            4. Activity levels and their impact on health
+            5. Stress and recovery balance
+            
+            Provide 3-5 specific, actionable insights based on the data patterns.
+            Be encouraging but honest. Format as a JSON array of insights:
+            [{"title": "string", "insight": "string", "recommendation": "string", "priority": "high/medium/low", "category": "sleep/heart/glucose/activity/stress/nutrition"}]"""
+        ).with_model("gemini", "gemini-2.5-flash")
+        
+        response = await chat.send_message(UserMessage(
+            text=f"Analyze this health data and provide personalized insights:\n\n{health_context}"
+        ))
+        
+        # Parse response
+        try:
+            response_text = response.strip()
+            if response_text.startswith("```json"):
+                response_text = response_text[7:]
+            if response_text.startswith("```"):
+                response_text = response_text[3:]
+            if response_text.endswith("```"):
+                response_text = response_text[:-3]
+            
+            insights = json.loads(response_text.strip())
+            return {"insights": insights}
+        except:
+            return {"insights": [{"title": "Analysis", "insight": response, "recommendation": "", "priority": "medium", "category": "general"}]}
+            
+    except Exception as e:
+        logger.error(f"AI insights error: {e}")
+        # Return fallback insights
+        return {
+            "insights": [
+                {"title": "Sleep Optimization", "insight": "Your sleep patterns show room for improvement.", "recommendation": "Aim for 7-8 hours of sleep and maintain consistent sleep/wake times.", "priority": "high", "category": "sleep"},
+                {"title": "Glucose Stability", "insight": "Monitor your glucose response to meals.", "recommendation": "Consider eating protein before carbs to minimize glucose spikes.", "priority": "medium", "category": "glucose"},
+                {"title": "Activity Goal", "insight": "Regular movement supports metabolic health.", "recommendation": "Try to reach 8,000+ steps daily for optimal health benefits.", "priority": "medium", "category": "activity"}
+            ]
+        }
+
+@api_router.post("/health/chat")
+async def health_chat(
+    request: ChatRequest,
+    user: User = Depends(get_current_user)
+):
+    """AI-powered health chat"""
+    try:
+        from emergentintegrations.llm.chat import LlmChat, UserMessage
+        
+        # Get health context if requested
+        health_context = ""
+        if request.include_health_context:
+            health_context = await get_health_context(user.user_id, 7)
+        
+        # Get recent chat history
+        recent_messages = await db.chat_history.find(
+            {"user_id": user.user_id}
+        ).sort("timestamp", -1).limit(10).to_list(10)
+        recent_messages.reverse()
+        
+        chat = LlmChat(
+            api_key=EMERGENT_LLM_KEY,
+            session_id=f"health_chat_{user.user_id}",
+            system_message=f"""You are a knowledgeable health assistant specializing in:
+            - Ketogenic diet and metabolic health
+            - Sleep optimization and recovery
+            - Heart rate variability (HRV) and stress management
+            - Continuous glucose monitoring (CGM) data interpretation
+            - Intermittent fasting
+            - Exercise and activity optimization
+            
+            You have access to the user's recent health data:
+            {health_context if health_context else "No recent health data available."}
+            
+            Provide helpful, evidence-based advice. Be conversational but informative.
+            If asked about medical conditions, remind users to consult healthcare providers.
+            Reference specific data points from their health metrics when relevant."""
+        ).with_model("gemini", "gemini-2.5-flash")
+        
+        # Send message
+        response = await chat.send_message(UserMessage(text=request.message))
+        
+        # Save to chat history
+        user_msg = ChatMessage(user_id=user.user_id, role="user", content=request.message)
+        assistant_msg = ChatMessage(user_id=user.user_id, role="assistant", content=response)
+        
+        await db.chat_history.insert_many([
+            user_msg.model_dump(),
+            assistant_msg.model_dump()
+        ])
+        
+        return {
+            "response": response,
+            "message_id": assistant_msg.message_id
+        }
+        
+    except Exception as e:
+        logger.error(f"Health chat error: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@api_router.get("/health/chat/history")
+async def get_chat_history(
+    limit: int = 50,
+    user: User = Depends(get_current_user)
+):
+    """Get chat history"""
+    messages = await db.chat_history.find(
+        {"user_id": user.user_id},
+        {"_id": 0}
+    ).sort("timestamp", -1).limit(limit).to_list(limit)
+    
+    messages.reverse()
+    return messages
+
+@api_router.delete("/health/chat/history")
+async def clear_chat_history(user: User = Depends(get_current_user)):
+    """Clear chat history"""
+    await db.chat_history.delete_many({"user_id": user.user_id})
+    return {"message": "Chat history cleared"}
+
+# ==================== TERRA INTEGRATION (PLACEHOLDER) ====================
+
+@api_router.get("/integrations/terra/providers")
+async def get_terra_providers():
+    """Get available Terra integration providers"""
+    # These are providers supported by Terra API
+    return [
+        {"id": "fitbit", "name": "Fitbit", "icon": "fitness", "status": "available"},
+        {"id": "garmin", "name": "Garmin", "icon": "watch", "status": "available"},
+        {"id": "whoop", "name": "WHOOP", "icon": "pulse", "status": "available"},
+        {"id": "oura", "name": "Oura Ring", "icon": "ellipse", "status": "available"},
+        {"id": "apple_health", "name": "Apple Health", "icon": "logo-apple", "status": "available"},
+        {"id": "samsung_health", "name": "Samsung Health", "icon": "phone-portrait", "status": "available"},
+        {"id": "google_fit", "name": "Google Fit", "icon": "logo-google", "status": "available"},
+        {"id": "withings", "name": "Withings", "icon": "body", "status": "available"},
+        {"id": "polar", "name": "Polar", "icon": "heart", "status": "available"},
+        {"id": "coros", "name": "COROS", "icon": "time", "status": "available"},
+        {"id": "dexcom", "name": "Dexcom CGM", "icon": "analytics", "status": "available"},
+        {"id": "libre", "name": "FreeStyle Libre", "icon": "trending-up", "status": "available"},
+    ]
+
+@api_router.post("/integrations/terra/connect/{provider}")
+async def connect_terra_provider(
+    provider: str,
+    user: User = Depends(get_current_user)
+):
+    """Initiate Terra provider connection (placeholder)"""
+    # In production, this would:
+    # 1. Generate a Terra widget session
+    # 2. Return a URL for OAuth flow
+    # 3. Handle webhook callbacks
+    
+    return {
+        "message": f"Terra integration for {provider} not yet configured",
+        "status": "pending_api_key",
+        "instructions": "Add TERRA_API_KEY and TERRA_DEV_ID to .env to enable wearable integrations",
+        "provider": provider
+    }
+
+@api_router.get("/integrations/status")
+async def get_integration_status(user: User = Depends(get_current_user)):
+    """Get status of all integrations"""
+    integrations = await db.terra_integrations.find(
+        {"user_id": user.user_id},
+        {"_id": 0}
+    ).to_list(20)
+    
+    return {
+        "connected": integrations,
+        "available_providers": 12,
+        "terra_configured": bool(os.environ.get("TERRA_API_KEY")),
+    }
+
 # Include the router in the main app
 app.include_router(api_router)
 
