@@ -15,8 +15,8 @@ const FastingIcon = ({ color, size }: { color: string; size: number }) => (
   <Ionicons name="timer" size={size} color={color} />
 );
 
-const SuggestionsIcon = ({ color, size }: { color: string; size: number }) => (
-  <Ionicons name="bulb" size={size} color={color} />
+const HealthIcon = ({ color, size }: { color: string; size: number }) => (
+  <Ionicons name="heart" size={size} color={color} />
 );
 
 const ProfileIcon = ({ color, size }: { color: string; size: number }) => (
@@ -67,10 +67,11 @@ export default function TabLayout() {
         }}
       />
       <Tabs.Screen
-        name="suggestions"
+        name="health"
         options={{
-          title: 'Tips',
-          tabBarIcon: SuggestionsIcon,
+          title: 'Health',
+          tabBarIcon: HealthIcon,
+          tabBarActiveTintColor: '#EF4444',
         }}
       />
       <Tabs.Screen
@@ -82,6 +83,12 @@ export default function TabLayout() {
       />
       <Tabs.Screen
         name="goals"
+        options={{
+          href: null, // Hide from tab bar but still accessible
+        }}
+      />
+      <Tabs.Screen
+        name="suggestions"
         options={{
           href: null, // Hide from tab bar but still accessible
         }}
