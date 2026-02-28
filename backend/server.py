@@ -69,6 +69,58 @@ class UserGoalsUpdate(BaseModel):
     daily_protein: Optional[int] = None
     daily_fat: Optional[int] = None
 
+# ==================== FASTING MODELS ====================
+
+class FastingProtocol(BaseModel):
+    protocol_id: str
+    name: str
+    fasting_hours: int
+    eating_hours: int
+    description: str
+
+# Pre-defined fasting protocols (like Zero app)
+FASTING_PROTOCOLS = [
+    FastingProtocol(protocol_id="16_8", name="16:8", fasting_hours=16, eating_hours=8, description="Most popular. Fast for 16 hours, eat within 8 hours."),
+    FastingProtocol(protocol_id="18_6", name="18:6", fasting_hours=18, eating_hours=6, description="Extended fast. Fast for 18 hours, eat within 6 hours."),
+    FastingProtocol(protocol_id="20_4", name="20:4", fasting_hours=20, eating_hours=4, description="Warrior Diet. Fast for 20 hours, eat within 4 hours."),
+    FastingProtocol(protocol_id="14_10", name="14:10", fasting_hours=14, eating_hours=10, description="Beginner friendly. Fast for 14 hours, eat within 10 hours."),
+    FastingProtocol(protocol_id="23_1", name="23:1 (OMAD)", fasting_hours=23, eating_hours=1, description="One Meal A Day. Fast for 23 hours."),
+    FastingProtocol(protocol_id="36", name="36 Hour", fasting_hours=36, eating_hours=0, description="Extended fast for 36 hours."),
+    FastingProtocol(protocol_id="custom", name="Custom", fasting_hours=0, eating_hours=0, description="Set your own fasting duration."),
+]
+
+class FastingSession(BaseModel):
+    session_id: str = Field(default_factory=lambda: f"fast_{uuid.uuid4().hex[:12]}")
+    user_id: str
+    protocol_id: str
+    protocol_name: str
+    target_hours: int
+    start_time: datetime
+    end_time: Optional[datetime] = None
+    target_end_time: datetime
+    is_active: bool = True
+    completed: bool = False
+    actual_hours: Optional[float] = None
+    notes: Optional[str] = None
+    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+
+class StartFastRequest(BaseModel):
+    protocol_id: str
+    custom_hours: Optional[int] = None  # For custom protocol
+    start_time: Optional[datetime] = None  # Optional, defaults to now
+
+class EndFastRequest(BaseModel):
+    notes: Optional[str] = None
+
+class FastingStats(BaseModel):
+    total_fasts: int = 0
+    completed_fasts: int = 0
+    total_hours_fasted: float = 0
+    average_fast_duration: float = 0
+    longest_fast: float = 0
+    current_streak: int = 0
+    best_streak: int = 0
+
 class FoodItem(BaseModel):
     food_id: str = Field(default_factory=lambda: f"food_{uuid.uuid4().hex[:12]}")
     name: str
